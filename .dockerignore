@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.github/
+.vscode/
+output/
+staging_point/failed_workspaces/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+*.md
+LICENSE
