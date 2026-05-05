@@ -1,0 +1,277 @@
+# -----------------------------------------------------------------------------
+# Aletheia / Knowledge Compiler .gitignore
+# Generated from file_map.csv after repo-size audit.
+# Goal: keep source code, tests, docs, and lightweight config tracked while
+# excluding generated corpora, caches, virtual environments, model artifacts,
+# run outputs, and private/local state.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Local secrets and environment files
+# -----------------------------------------------------------------------------
+.env
+.env.*
+.env.txt
+*.env
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+*.secret
+secrets/
+credentials/
+
+# Keep safe templates/examples if you add them later
+!.env.example
+!.env.template
+
+# -----------------------------------------------------------------------------
+# Assistant / IDE / OS local state
+# -----------------------------------------------------------------------------
+.claude/
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# -----------------------------------------------------------------------------
+# Python virtual environments
+# -----------------------------------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+.venv_semantic/
+.venv_training/
+
+# -----------------------------------------------------------------------------
+# Python caches, type-checker caches, test caches
+# -----------------------------------------------------------------------------
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.ipynb_checkpoints/
+
+# Explicit cache paths found in file_map.csv
+scripts/.mypy_cache/
+.cache/semantic_ast/
+.cache/aletheia_ast/
+
+# -----------------------------------------------------------------------------
+# Node / frontend local dependencies and build outputs
+# -----------------------------------------------------------------------------
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+dist/
+build/
+coverage/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+
+# -----------------------------------------------------------------------------
+# Runtime logs, temporary files, and local process state
+# -----------------------------------------------------------------------------
+runtime_logs/
+logs/
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.pid
+*.lock
+
+# -----------------------------------------------------------------------------
+# Pipeline-generated outputs and run directories
+# -----------------------------------------------------------------------------
+runs/
+output/
+archive_runs/
+run_combined_data/
+staging_point/
+colab_staging/
+colab_deployment/
+_unsloth_sentencepiece_temp/
+unsloth_compiled_cache/
+
+# -----------------------------------------------------------------------------
+# Landing-pad / local source corpus directories
+# These are user-local data inputs, not repo source.
+# -----------------------------------------------------------------------------
+input_configs/
+notebooks/
+simulation_data/
+GIFS/
+config/landing_pad/
+
+# If you intentionally want tiny examples, place them under examples/ instead.
+
+# -----------------------------------------------------------------------------
+# Generated datasets, manifests, file maps, and knowledge matrices
+# -----------------------------------------------------------------------------
+data/raw/
+data/interim/
+data/processed/
+datasets/
+artifacts/
+knowledge_complexes/
+semantic_graph/
+
+*.jsonl
+*.ndjson
+*.parquet
+*.arrow
+*.feather
+*.h5
+*.hdf5
+*.npy
+*.npz
+*.sqlite
+*.sqlite3
+*.db
+
+# Project-specific generated audit/map files
+file_map*.csv
+filtered_processing_map*.csv
+*_processing_map.csv
+*_manifest.generated.*
+*_audit.generated.*
+KNOWLEDGE_MATRIX*.yaml
+*.rejected.yaml
+rejected_*.jsonl
+rejected_summary*.json
+branch_quality_summary*.json
+failure_matrix*.json
+
+# Keep intentionally curated small fixtures if added later
+!tests/fixtures/**/*.jsonl
+!tests/fixtures/**/*.json
+!examples/**/*.jsonl
+!examples/**/*.json
+
+# -----------------------------------------------------------------------------
+# Model, adapter, checkpoint, and training artifacts
+# -----------------------------------------------------------------------------
+models/
+adapters/
+lora/
+qlora/
+checkpoints/
+lora_checkpoints/
+wandb/
+mlruns/
+lightning_logs/
+tensorboard/
+
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.safetensors
+*.gguf
+*.onnx
+*.tflite
+*.pb
+*.model
+*.spm
+*.pkl
+*.pickle
+
+# -----------------------------------------------------------------------------
+# Large document/media/source-corpus formats
+# Do not commit source corpora or generated media.
+# -----------------------------------------------------------------------------
+*.pdf
+*.epub
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.xls
+*.xlsx
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.gz
+*.bz2
+*.xz
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.gif
+*.png
+*.jpg
+*.jpeg
+*.tif
+*.tiff
+*.wav
+*.mp3
+*.flac
+
+# Keep lightweight documentation assets only if explicitly curated
+!docs/**/*.png
+!docs/**/*.jpg
+!docs/**/*.jpeg
+!docs/**/*.gif
+!docs/**/*.svg
+
+# -----------------------------------------------------------------------------
+# Packaging/build artifacts
+# -----------------------------------------------------------------------------
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+wheelhouse/
+
+# -----------------------------------------------------------------------------
+# Keep source, tests, docs, and config tracked
+# These negations protect important lightweight project files from broad rules.
+# -----------------------------------------------------------------------------
+!README.md
+!V2_RELEASE_NOTES.md
+!requirements.txt
+!requirements-lock.txt
+!requirements_semantic.txt
+!requirements_training.txt
+!docker-compose.yml
+!mypy.ini
+!test_dossier.yaml
+!config/**/*.yaml
+!config/**/*.yml
+!config/**/*.json
+!scripts/config/**/*.json
+!src/**
+!scripts/**/*.py
+!scripts/**/*.sh
+!scripts/**/*.bat
+!tests/**
+!docs/**/*.md
+!frontend/**/*.ts
+!frontend/**/*.tsx
+!frontend/**/*.css
+!frontend/**/*.html
+!frontend/**/*.js
+!frontend/**/*.mjs

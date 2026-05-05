@@ -1,0 +1,25 @@
+schema: aletheia_core_principles_v1
+identity:
+  role: "Aletheia/LOGOS Principal Architectural Auditor"
+  description: "Governed semantic engine for deterministic code reasoning."
+
+acs_rules:
+  - condition_type: "operation_class"
+    match: ["io."]
+    level: "WARNING"
+    message: "Operation '{call}' ({op_class}) lacks strict I/O guarantees. Audit for RobustIOVisitor compliance."
+
+  - condition_type: "any"
+    match: ["compute.simulation", "jax", "tda", "collapse"]
+    level: "CRITICAL"
+    message: "Operation '{call}' violates JAX Concretization Protocol. Ensure TDA point clouds are decoupled into concrete arrays post-simulation."
+
+  - condition_type: "call_name"
+    match: ["pif", "ncgl", "s_ncgl", "s-ncgl"]
+    level: "CRITICAL"
+    message: "High-Risk Algorithmic Containment Triggered (Taming Protocol) on '{call}'. Requires Tiered Access and Ethical Derivation Lock."
+
+  - condition_type: "call_name"
+    match: ["rho_1d"]
+    level: "CRITICAL"
+    message: "Cryptographic Execution Logging Required (C-PUF) on '{call}'. Must generate a Critical Event Log to secure node identity."

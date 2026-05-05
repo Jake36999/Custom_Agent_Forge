@@ -1,0 +1,21 @@
+schema: aletheia_skill_dossier_v7
+capability_injection:
+  heuristic_routing_matrix: []
+  compiled_skills: []
+epistemic_provenance:
+  confidence_score: 0.0
+  supporting_evidence: []
+  source:
+    project: alta
+    bundle_schema_version: aletheia_bundle_v6.0
+  audit_metrics:
+    raw_ast_slice_count: 387
+    raw_ocr_document_count: 0
+    merged_node_count: 387
+    runtime_status: failed
+    runtime_failure_reason: ''
+    raw_skill_candidate_count: 0
+    filtered_ocr_document_count: 0
+    filtered_stub_count: 0
+    fused_ocr_link_count: 0
+    final_skill_count: 0

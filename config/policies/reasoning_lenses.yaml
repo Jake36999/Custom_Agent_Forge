@@ -1,0 +1,28 @@
+schema: aletheia_reasoning_lenses_v1
+
+ontology_mappings:
+  core:
+    '(?i)(fetch|get|request|axios|http|curl)': 'io.network.read'
+    '(?i)(malloc|calloc|new\s|std::make_shared|std::make_unique)': 'memory.allocate'
+    '(?i)(free|delete\s|drop)': 'memory.deallocate'
+    '(?i)(std::memcpy|memmove)': 'memory.mutate.unsafe'
+    '(?i)(std::mutex|std::lock_guard|pthread_mutex_lock)': 'compute.thread.lock'
+    '(?i)(__syncthreads|cudaDeviceSynchronize)': 'compute.gpu.barrier'
+    '(?i)(unsafe\s*\{)': 'compute.unsafe_block.CRITICAL'
+    '(?i)(\.unwrap\(\)|\.expect\()': 'logic.error_handling.panic_risk'
+    '(?i)(Arc::|Mutex::|RwLock::)': 'memory.thread_safe_reference'
+  extensions:
+    '(?i)(simulate|rho_1d|pif|ncgl|tda|collapse_points|jax|physics|solve)': 'compute.simulation'
+    '(?i)(crypto|hash|cipher|sha|md5|entropy|pem|key|auth|sign)': 'security.crypto'
+
+base_atomic_lenses:
+  - name: "Ontological_Mapping_Lens"
+    purpose: "Map system boundaries and dependency graphs."
+  - name: "Behavioral_Extraction_Lens"
+    purpose: "Extract causal transformations and state mutations."
+  - name: "Constraint_Validation_Lens"
+    purpose: "Verify execution flows against risk and safety axioms."
+  - name: "Algorithmic_Abstraction_Lens"
+    purpose: "Elevate code implementations into generalized templates."
+  - name: "System_Reconstruction_Lens"
+    purpose: "Reconstruct system logic deterministically."

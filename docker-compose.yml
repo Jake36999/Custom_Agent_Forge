@@ -1,0 +1,147 @@
+# ───────────────────────────────────────────────────────────────
+# Aletheia Knowledge Compiler — Docker Compose
+# Services: Redis broker, API, 4-mode Celery workers, Flower
+# ───────────────────────────────────────────────────────────────
+services:
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: .
+    restart: unless-stopped
+    command: >
+      uvicorn src.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file: config/docker.env
+    volumes:
+      - ./landing_pad:/app/landing_pad
+      - ./output:/app/output
+      - ./staging_point:/app/staging_point
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  worker-theorist:
+    build: .
+    restart: unless-stopped
+    command: >
+      celery -A src.celery_app worker
+      --queues=theorist
+      --concurrency=2
+      --loglevel=info
+      -n theorist@%h
+    env_file: config/docker.env
+    volumes:
+      - ./landing_pad:/app/landing_pad
+      - ./output:/app/output
+      - ./staging_point:/app/staging_point
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker-coding:
+    build: .
+    restart: unless-stopped
+    command: >
+      celery -A src.celery_app worker
+      --queues=coding
+      --concurrency=2
+      --loglevel=info
+      -n coding@%h
+    env_file: config/docker.env
+    volumes:
+      - ./landing_pad:/app/landing_pad
+      - ./output:/app/output
+      - ./staging_point:/app/staging_point
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker-advocate:
+    build: .
+    restart: unless-stopped
+    command: >
+      celery -A src.celery_app worker
+      --queues=advocate
+      --concurrency=2
+      --loglevel=info
+      -n advocate@%h
+    env_file: config/docker.env
+    volumes:
+      - ./landing_pad:/app/landing_pad
+      - ./output:/app/output
+      - ./staging_point:/app/staging_point
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker-veteran:
+    build: .
+    restart: unless-stopped
+    command: >
+      celery -A src.celery_app worker
+      --queues=veteran
+      --concurrency=1
+      --loglevel=info
+      -n veteran@%h
+    env_file: config/docker.env
+    volumes:
+      - ./landing_pad:/app/landing_pad
+      - ./output:/app/output
+      - ./staging_point:/app/staging_point
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker-pipeline:
+    build: .
+    restart: unless-stopped
+    command: >
+      celery -A src.celery_app worker
+      --queues=pipeline
+      --concurrency=2
+      --loglevel=info
+      -n pipeline@%h
+    env_file: config/docker.env
+    volumes:
+      - ./landing_pad:/app/landing_pad
+      - ./output:/app/output
+      - ./staging_point:/app/staging_point
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  flower:
+    build: .
+    restart: unless-stopped
+    command: >
+      celery -A src.celery_app flower
+      --port=5555
+    ports:
+      - "5555:5555"
+    env_file: config/docker.env
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5555/healthcheck || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

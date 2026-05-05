@@ -1,0 +1,11 @@
+# Aletheia Engine Configuration
+run_settings:
+  active_mode: "theorist"
+  target_directory: "config/landing_pad/theorist"
+
+formatting_settings:
+  system_prompt: "You are a physical chemistry expert and educator."
+  max_seq_length: 2048
+
+advocate_tuning:
+  text_to_code_ratio: 0.5

@@ -1,0 +1,66 @@
+# ============================================================
+# Aletheia V2.1 QLoRA Training Config - VETERAN
+# Target: 2x 8GB GPUs (16GB total VRAM)
+# ============================================================
+
+base_model: meta-llama/Meta-Llama-3-8B-Instruct
+model_type: LlamaForCausalLM
+tokenizer_type: AutoTokenizer
+trust_remote_code: true
+
+load_in_4bit: true
+adapter: qlora
+qlora_quantize_base_model: true
+
+datasets:
+  - path: output/datasets/veteran/qlora_veteran_dataset.jsonl
+    type: chatml
+    ds_type: json
+
+chat_template: chatml
+train_on_inputs: false
+
+sequence_len: 2048
+
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.05
+lora_target_modules:
+  - q_proj
+  - k_proj
+  - v_proj
+  - o_proj
+  - gate_proj
+  - up_proj
+  - down_proj
+lora_target_linear: true
+
+micro_batch_size: 1
+eval_batch_size: 1
+gradient_accumulation_steps: 8
+gradient_checkpointing: true
+gradient_checkpointing_kwargs:
+  use_reentrant: false
+
+num_epochs: 3
+learning_rate: 1.5e-5
+weight_decay: 0.01
+lr_scheduler: cosine
+warmup_ratio: 0.05
+optimizer: adamw_torch
+
+bf16: auto
+tf32: true
+flash_attention: true
+
+val_set_size: 0.05
+eval_steps: 50
+save_steps: 100
+save_total_limit: 3
+logging_steps: 10
+
+output_dir: ./output/lora_veteran
+
+seed: 42
+pad_to_sequence_len: true
+sample_packing: true

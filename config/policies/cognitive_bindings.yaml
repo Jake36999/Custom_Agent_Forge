@@ -1,0 +1,30 @@
+schema: aletheia_cognitive_bindings_v1
+description: "Master routing matrix linking structural code topologies (SIDs) to Semantic Reasoning Lenses."
+
+binding_matrix:
+  # 1. The Spatial OCR / Vision Binding
+  - target_sid: "SID_io_network_read_2c6769cf"  # The OCR topology we extracted from your RAG pipeline
+    methodological_cue: "Spatial Boundary Extraction detected."
+    triggered_lens: "LogosAgent_Spatial_Topology_Lens"
+    semantic_payload: >
+      This node interacts with external visual matrices (e.g., pdf2image, pytesseract). 
+      Do not reason about this purely as text I/O. You must engage architectural spatial reasoning. 
+      Consider visual bounding boxes, diagrammatic relationships, and non-linear component mapping.
+
+  # 2. The GPU Acceleration Binding (For CuPy / Nbodykit)
+  - target_pattern_type: "compute.simulation"
+    hardware_activation_cue: "requires_cuda: true" # Sensed from the Manifest Metadata
+    triggered_lens: "LogosAgent_VRAM_Fragmentation_Lens"
+    semantic_payload: >
+      GPU simulation workload detected (JAX/TDA pipeline). Enforce JAX concretization constraints.
+      Assess pointer arithmetic, concurrent state mutations, and VRAM memory boundaries 
+      across the 16GB unified Vulkan pool.
+
+  # 3. The Orchestration Binding (For Dagster / Ansible)
+  - target_pattern_type: "general operator"
+    graph_complexity_trigger: "Fan-Out > 10" # Sensed from the Structural Complexity
+    triggered_lens: "LogosAgent_Orchestration_Optimization_Lens"
+    semantic_payload: >
+      High-fan-out orchestration node detected. Proceed with extreme caution.
+      Assess the blast radius of downstream mutations. Ensure circular dependencies 
+      are flagged by the ACS Coherence Engine prior to state execution.
