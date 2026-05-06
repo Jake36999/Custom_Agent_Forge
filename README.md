@@ -531,6 +531,4 @@ runs/<run_id>/qlora_<mode>_dataset.jsonl
 
 ---
 
-## License
 
-No license file is documented here yet. Add a `LICENSE` file before publishing, redistributing, or accepting external contributions.
