@@ -1,6 +1,8 @@
 # Custom Agent Forge
 
-> A mode-aware knowledge compilation and dataset-forging pipeline for building specialized AI agents from code, documents, notebooks, and reasoning traces.
+> An experimental mode-aware knowledge compilation and dataset-forging pipeline for building specialized AI agents from code, documents, notebooks, and reasoning traces.
+
+> Reviewer note: I am a self-taught career changer and this is an experimental learning project. The repository is intended to show systems thinking, documentation, data-pipeline design, and AI workflow experimentation rather than production-level ML engineering.
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](#requirements)
 [![Status](https://img.shields.io/badge/status-active%20research%20prototype-orange.svg)](#project-status)
