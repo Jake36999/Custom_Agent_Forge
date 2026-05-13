@@ -8,6 +8,11 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.core.meta_reasoning_models import (
+    HIDDEN_GOVERNANCE_KEYS,
+    assert_no_hidden_governance_in_messages,
+)
+
 # Accumulates SIE lens tags across a single format_complexes() run.
 # Cleared at the entry of each run to prevent cross-run state bleed.
 _SIE_LENS_COUNTS: dict = {}
@@ -178,7 +183,7 @@ _INTERNAL_KEYS = {
     "topology_cluster", "acs_handshake_sid", "acs_violations", "acs_audited",
     "v_score", "validation_pass",
     "_sie_metadata",
-}
+} | HIDDEN_GOVERNANCE_KEYS
 
 
 def _stable_json_blob(obj: Any) -> str:
@@ -248,6 +253,16 @@ def _apply_loss_masking_schema(messages: List[Dict[str, str]]) -> Dict[str, Any]
     }
 
 
+def _finalize_chatml_record(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Return an SFT record only if hidden governance metadata is absent."""
+
+    try:
+        assert_no_hidden_governance_in_messages(record.get("messages", []))
+    except ValueError:
+        return {}
+    return record
+
+
 # Placeholder strings emitted by the DAG runtime's Procedural_Mapping lens.
 # These carry zero epistemic value and must never reach the training set.
 _PLACEHOLDER_OUTPUTS = frozenset({
@@ -311,7 +326,7 @@ def _knowledge_chatml_record(payload: Dict[str, Any], identity: Optional[str]) -
     is_theorist = (
         skill_type == "theoretical_reasoning"
         or source_type == "ocr_document"
-        or mode == "theorist"
+        or mode in ("theorist", "scholar")
     )
 
     _sie_lens = None  # populated only for theorist records that clear the SIE gate
@@ -327,6 +342,9 @@ def _knowledge_chatml_record(payload: Dict[str, Any], identity: Optional[str]) -
         reasoning_trace = payload.get("reasoning_trace")
         final_answer    = payload.get("final_answer", "")
         schema_version  = payload.get("schema_version", "1.0")
+        code_snippet    = str(payload.get("code_snippet", "")).strip()
+        if code_snippet and str(final_answer).strip() == code_snippet:
+            return {}
 
         # v2 branch schema path — BranchTrace render (Phase 3).
         if schema_version == "2.0":
@@ -369,7 +387,7 @@ def _knowledge_chatml_record(payload: Dict[str, Any], identity: Optional[str]) -
                 if payload.get("condition_coverage") is not None
                 else topology.get("condition_coverage", 0.0)
             )
-            return record
+            return _finalize_chatml_record(record)
 
         # v1 dual-channel guard — both fields required, reasoning_trace must be a non-empty list.
         if not (isinstance(reasoning_trace, list) and len(reasoning_trace) > 0 and final_answer):
@@ -392,7 +410,7 @@ def _knowledge_chatml_record(payload: Dict[str, Any], identity: Optional[str]) -
             record = _apply_loss_masking_schema(messages)
             record["_mode"]          = "knowledge"
             record["reasoning_type"] = payload.get("reasoning_type", "standard")
-            return record
+            return _finalize_chatml_record(record)
 
     elif mode == "veteran":
         system_prompt = "Veteran Mode: Analyze the reasoning path, identify logical drift, and output a corrective trajectory grounded in Advocate diagnostics."
@@ -438,7 +456,7 @@ def _knowledge_chatml_record(payload: Dict[str, Any], identity: Optional[str]) -
     if _sie_lens is not None:
         record["sie_lens"]       = _sie_lens
         record["reasoning_type"] = payload.get("_ral_mode", "standard")
-    return record
+    return _finalize_chatml_record(record)
 
 
 def _knowledge_from_existing_messages(payload: Dict[str, Any], identity: Optional[str]) -> Dict[str, Any]:
@@ -473,7 +491,7 @@ def _knowledge_from_existing_messages(payload: Dict[str, Any], identity: Optiona
 
     record = _apply_loss_masking_schema(cleaned)
     record["_mode"] = "knowledge"
-    return record
+    return _finalize_chatml_record(record)
 
 
 # Orchestration-only failure types that carry no genuine reasoning signal.
