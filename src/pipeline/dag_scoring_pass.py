@@ -61,6 +61,7 @@ logger = logging.getLogger("Advocate.DAGScoringPass")
 
 try:
     import argparse
+    from src.core.meta_reasoning_models import HIDDEN_GOVERNANCE_KEYS
     from src.core.models import AletheiaSkill  # noqa: F401 — kept for wrap_payload consumers
     from src.pipeline.contracts import MODE_CONTRACTS
 except ImportError as e:
@@ -275,6 +276,7 @@ _INTERNAL_SEMANTICS_KEYS = frozenset({
     "_acs_structured_constraints",
     "_reroll_context",
 })
+_INTERNAL_SEMANTICS_KEYS = _INTERNAL_SEMANTICS_KEYS | HIDDEN_GOVERNANCE_KEYS
 
 _INTERNAL_NODE_KEYS = frozenset({
     "sie_node",
@@ -283,6 +285,7 @@ _INTERNAL_NODE_KEYS = frozenset({
     "acs_violations",
     "acs_audited",
 })
+_INTERNAL_NODE_KEYS = _INTERNAL_NODE_KEYS | HIDDEN_GOVERNANCE_KEYS
 
 
 def sanitize_scored_node(node_dict: Dict[str, Any]) -> Dict[str, Any]:

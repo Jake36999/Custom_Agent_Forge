@@ -34,6 +34,7 @@ import traceback
 import networkx as nx
 from typing import Dict, List, Any, Optional, Set
 from copy import deepcopy
+from pydantic import TypeAdapter
 
 
 # ============================================================
@@ -68,6 +69,13 @@ class TransitionTrigger:
     REROLL_NO_ENGINE       = "reroll_no_engine"
     REROLL_ATTEMPT         = "reroll_attempt"
     OMEGA_ORPHAN_QUARANTINE = "omega_orphan_quarantine"
+    BOUNDARY_SCOPE_FAILURE = "boundary_scope_failure"
+    THOUGHT_ACTION_LEAK = "thought_action_leak"
+    FREE_FLOATING_LENS = "free_floating_lens"
+    LEXICAL_EDGE_QUARANTINE = "lexical_edge_quarantine"
+    LOW_CONFIDENCE_DOMAIN_BRIDGE = "low_confidence_domain_bridge"
+    CLUSTER_COMPRESSION_BLOCKED = "cluster_compression_blocked"
+    TRAINING_VISIBILITY_LEAK = "training_visibility_leak"
 
     ALL = frozenset({
         BOOTSTRAP, CONTRACT_PASSED, CONTRACT_VIOLATION, DRIFT_VIOLATION,
@@ -78,6 +86,9 @@ class TransitionTrigger:
         INSTABILITY_REROLL, CASCADE_FROM_PARENT, CONSISTENCY_VIOLATION,
         BRANCH_SPAWN, DEPTH_LIMIT, REROLL_BUDGET_EXHAUSTED,
         REROLL_NO_ENGINE, REROLL_ATTEMPT, OMEGA_ORPHAN_QUARANTINE,
+        BOUNDARY_SCOPE_FAILURE, THOUGHT_ACTION_LEAK, FREE_FLOATING_LENS,
+        LEXICAL_EDGE_QUARANTINE, LOW_CONFIDENCE_DOMAIN_BRIDGE,
+        CLUSTER_COMPRESSION_BLOCKED, TRAINING_VISIBILITY_LEAK,
     })
 
     @classmethod
@@ -130,6 +141,16 @@ try:
         AletheiaSkill, TeachingLayer, TopologyCluster, EpistemicState,
         SemanticReasoningNode, CognitiveNode, ReasoningEdge, Constraint,
         IdentityState, ProjectedNode,
+    )
+    from src.core.meta_reasoning_models import (
+        BoundaryNode,
+        ControlNode,
+        IdentityScope,
+        LensCoordinate,
+        TaskScope,
+        ThoughtActionBoundary,
+        TopologyBridgeNode,
+        assert_no_hidden_governance_in_text,
     )
     from src.pipeline.contracts import validate_contract, MODE_CONTRACTS
     from src.pipeline.identity_manager import IdentityManager
@@ -219,6 +240,217 @@ SLR_THRESHOLDS = {
     "reroll": 0.7,     # Trigger reroll + identity mutation
     "collapse": 0.8,   # Hard rejection — confidence collapse
 }
+
+MIN_DOMAIN_BRIDGE_CONFIDENCE = 0.70
+MIN_CLUSTER_MERGE_CONFIDENCE = 0.75
+
+
+def _governance_issue(trigger: str, action: str, reason: str, **extra: Any) -> Dict[str, Any]:
+    issue = {"trigger": trigger, "action": action, "reason": reason}
+    issue.update(extra)
+    return issue
+
+
+def _validate_control_plane_fields(node: AletheiaSkill) -> List[Dict[str, Any]]:
+    """Validate optional node-level control-plane fields when present."""
+
+    issues: List[Dict[str, Any]] = []
+    validators = (
+        ("identity_scope", IdentityScope),
+        ("task_scope", TaskScope),
+        ("thought_action_boundary", ThoughtActionBoundary),
+    )
+    for field_name, schema in validators:
+        value = getattr(node, field_name, None)
+        if value is None:
+            continue
+        try:
+            schema.model_validate(value)
+        except Exception as exc:
+            issues.append(_governance_issue(
+                TransitionTrigger.BOUNDARY_SCOPE_FAILURE,
+                "reject",
+                f"{field_name} failed validation: {exc}",
+                field=field_name,
+            ))
+
+    adapter = TypeAdapter(ControlNode)
+    for idx, control_node in enumerate(getattr(node, "control_nodes", []) or []):
+        try:
+            validated = adapter.validate_python(control_node)
+        except Exception as exc:
+            issues.append(_governance_issue(
+                TransitionTrigger.BOUNDARY_SCOPE_FAILURE,
+                "reject",
+                f"control_nodes[{idx}] failed validation: {exc}",
+                field="control_nodes",
+            ))
+            continue
+        lens_issue = _validate_lens_attachment(validated, owner_kind="node")
+        if lens_issue is not None:
+            issues.append(lens_issue)
+    return issues
+
+
+def _detect_thought_action_leak(node: AletheiaSkill) -> Optional[Dict[str, Any]]:
+    boundary = getattr(node, "thought_action_boundary", None)
+    if boundary is None:
+        return None
+    try:
+        boundary = ThoughtActionBoundary.model_validate(boundary)
+    except Exception as exc:
+        return _governance_issue(
+            TransitionTrigger.BOUNDARY_SCOPE_FAILURE,
+            "reject",
+            f"thought_action_boundary failed validation: {exc}",
+        )
+    if not boundary.action_authorised and boundary.action_state_class != "none":
+        return _governance_issue(
+            TransitionTrigger.THOUGHT_ACTION_LEAK,
+            "reroll",
+            "unauthorised action state escaped thought/action boundary",
+        )
+    return None
+
+
+def _validate_lens_attachment(control_node: Any, owner_kind: Optional[str]) -> Optional[Dict[str, Any]]:
+    try:
+        lens = (
+            control_node
+            if isinstance(control_node, LensCoordinate)
+            else LensCoordinate.model_validate(control_node)
+        )
+    except Exception:
+        return None
+
+    if owner_kind is None or lens.applies_to != owner_kind:
+        return _governance_issue(
+            TransitionTrigger.FREE_FLOATING_LENS,
+            "quarantine",
+            "lens coordinate is not attached to its declared owner",
+            lens_id=lens.lens_id,
+        )
+    if lens.intervention_type == "quarantine":
+        return _governance_issue(
+            TransitionTrigger.FREE_FLOATING_LENS,
+            "quarantine",
+            "attached lens requested quarantine",
+            lens_id=lens.lens_id,
+        )
+    if lens.intervention_type == "reroll":
+        return _governance_issue(
+            TransitionTrigger.FREE_FLOATING_LENS,
+            "reroll",
+            "attached lens requested reroll",
+            lens_id=lens.lens_id,
+        )
+    return _governance_issue(None, "observe", "attached lens is advisory", lens_id=lens.lens_id)
+
+
+def _edge_endpoint_is_control(endpoint: Optional[str]) -> bool:
+    lowered = str(endpoint or "").lower()
+    return lowered.startswith(("control:", "lens:", "boundary:", "bridge:"))
+
+
+def _govern_edge_policy(edge: ReasoningEdge) -> Dict[str, Any]:
+    """Return advisory/quarantine policy for governed edge metadata."""
+
+    relation_type = getattr(edge, "relation_type", None)
+    evidence_basis = getattr(edge, "evidence_basis", None)
+    if relation_type == "lexical_similarity":
+        return _governance_issue(
+            TransitionTrigger.LEXICAL_EDGE_QUARANTINE,
+            "quarantine",
+            "lexical similarity edges quarantine by default",
+        )
+
+    if relation_type == "domain_bridge" and (
+        _edge_endpoint_is_control(getattr(edge, "source_id", None))
+        or _edge_endpoint_is_control(getattr(edge, "target_id", None))
+        or getattr(edge, "lens_coordinates", None)
+    ):
+        return _governance_issue(
+            TransitionTrigger.LOW_CONFIDENCE_DOMAIN_BRIDGE,
+            "reject",
+            "control or lens nodes cannot create domain bridges",
+        )
+
+    if relation_type == "domain_bridge" and not evidence_basis:
+        return _governance_issue(
+            TransitionTrigger.LOW_CONFIDENCE_DOMAIN_BRIDGE,
+            "quarantine",
+            "domain bridge missing evidence_basis",
+        )
+
+    if getattr(edge, "cross_domain", False) and getattr(edge, "edge_confidence", 0.0) < MIN_DOMAIN_BRIDGE_CONFIDENCE:
+        return _governance_issue(
+            TransitionTrigger.LOW_CONFIDENCE_DOMAIN_BRIDGE,
+            "quarantine",
+            "cross-domain edge below confidence threshold",
+        )
+
+    for lens in getattr(edge, "lens_coordinates", []) or []:
+        issue = _validate_lens_attachment(lens, owner_kind="edge")
+        if issue and issue["action"] != "observe":
+            return issue
+
+    return _governance_issue(None, "observe", "edge governance passed")
+
+
+def _govern_cluster_promotion(cluster: TopologyCluster) -> Dict[str, Any]:
+    """Return quarantine policy for governed cluster promotion metadata."""
+
+    stage = getattr(cluster, "cluster_stage", None)
+    merge_basis = getattr(cluster, "merge_basis", None)
+    merge_confidence = getattr(cluster, "merge_confidence", 0.0)
+    preserved_contrast_terms = getattr(cluster, "preserved_contrast_terms", []) or []
+
+    if merge_basis == "lexical":
+        return _governance_issue(
+            TransitionTrigger.CLUSTER_COMPRESSION_BLOCKED,
+            "quarantine",
+            "cluster compression cannot use lexical merge basis",
+        )
+    if stage == "compressed_invariant":
+        if merge_confidence < MIN_CLUSTER_MERGE_CONFIDENCE:
+            return _governance_issue(
+                TransitionTrigger.CLUSTER_COMPRESSION_BLOCKED,
+                "quarantine",
+                "compressed invariant below merge confidence threshold",
+            )
+        if not preserved_contrast_terms:
+            return _governance_issue(
+                TransitionTrigger.CLUSTER_COMPRESSION_BLOCKED,
+                "quarantine",
+                "compressed invariant requires preserved contrast terms",
+            )
+    return _governance_issue(None, "observe", "cluster governance passed")
+
+
+def _detect_training_visibility_leak(node: AletheiaSkill) -> Optional[Dict[str, Any]]:
+    """Detect hidden governance keys in assistant-visible/output-ish node text."""
+
+    candidates: List[str] = []
+    semantics = getattr(node, "semantics", None)
+    if isinstance(semantics, dict):
+        for key in ("output", "final_answer", "assistant", "assistant_content"):
+            if semantics.get(key):
+                candidates.append(str(semantics[key]))
+    for attr in ("output", "final_answer"):
+        value = getattr(node, attr, None)
+        if value:
+            candidates.append(str(value))
+
+    for text in candidates:
+        try:
+            assert_no_hidden_governance_in_text(text)
+        except ValueError as exc:
+            return _governance_issue(
+                TransitionTrigger.TRAINING_VISIBILITY_LEAK,
+                "reject",
+                str(exc),
+            )
+    return None
 
 # Telemetry → Action Thresholds (canonical source: telemetry_policy.py)
 from src.pipeline.telemetry_policy import (
@@ -875,6 +1107,46 @@ class DAGRuntime:
     # ------------------------------------------------------------------
     # State Machine: CREATED → VALIDATED (Contract Gate)
     # ------------------------------------------------------------------
+    def _apply_control_plane_governance(self, node: AletheiaSkill, prev: str) -> bool:
+        """Apply Phase 4 control-plane checks at the validation boundary."""
+
+        issues = _validate_control_plane_fields(node)
+        thought_issue = _detect_thought_action_leak(node)
+        visibility_issue = _detect_training_visibility_leak(node)
+        issues.extend(issue for issue in (thought_issue, visibility_issue) if issue)
+
+        cluster = getattr(node, "topology_cluster", None)
+        if cluster is not None:
+            issues.append(_govern_cluster_promotion(cluster))
+
+        for issue in issues:
+            if not issue or issue.get("action") == "observe":
+                continue
+            trigger = issue.get("trigger") or TransitionTrigger.BOUNDARY_SCOPE_FAILURE
+            reason = issue.get("reason", trigger)
+            action = issue.get("action")
+
+            if action == "reroll":
+                self._route_to_reroll(node, prev, f"{trigger}: {reason}")
+                return False
+
+            node.epistemic.state = NodeState.REJECTED
+            node.epistemic.final_status = f"{trigger}: {reason}"
+            if action == "quarantine":
+                payload = node.model_dump() if hasattr(node, "model_dump") else {}
+                payload["quarantine_reason"] = trigger
+                if hasattr(self.graph, "quarantine") and isinstance(self.graph.quarantine, list):
+                    self.graph.quarantine.append(payload)
+            self._log_transition(
+                node.node_id,
+                prev,
+                NodeState.REJECTED,
+                f"{trigger}: {reason}",
+                trigger=trigger,
+            )
+            return False
+        return True
+
     def _transition_to_validated(self, node: AletheiaSkill) -> bool:
         """
         CREATED → VALIDATED via contract validation.
@@ -885,6 +1157,9 @@ class DAGRuntime:
 
         # Mode-specific content generation
         self.execute(node)
+
+        if not self._apply_control_plane_governance(node, prev):
+            return False
 
         # Contract validation gate
         contract_schema = MODE_CONTRACTS.get(self.mode)

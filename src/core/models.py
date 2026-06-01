@@ -8,6 +8,14 @@ from datetime import datetime
 from uuid import uuid4
 from pydantic import Field, field_validator, model_validator, computed_field
 from src.core.models_contract import BaseAletheiaModel
+from src.core.mode_registry import CanonicalMode, normalize_mode
+from src.core.meta_reasoning_models import (
+    ControlNode,
+    IdentityScope,
+    LensCoordinate,
+    TaskScope,
+    ThoughtActionBoundary,
+)
 
 
 class StructuralAlignment(BaseAletheiaModel):
@@ -67,6 +75,20 @@ class IdentityState(BaseAletheiaModel):
     capabilities: Dict[str, Any] = Field(default_factory=dict, description="Tracked agent capabilities extracted from processed skills")
     constraints: List[Any] = Field(default_factory=list, description="Active identity-level constraints")
     version: int = Field(default=1, ge=1, description="Identity schema version, incremented on trajectory updates")
+    compiled_mode: Optional[CanonicalMode] = None
+    legacy_mode_aliases: List[str] = Field(default_factory=list)
+    role_contract_id: Optional[str] = None
+    role_contract_version: int = Field(default=1, ge=1)
+    identity_invariants: List[str] = Field(default_factory=list)
+    allowed_output_forms: List[str] = Field(default_factory=list)
+    prohibited_conflations: List[str] = Field(default_factory=list)
+
+    @field_validator('compiled_mode', mode='before')
+    @classmethod
+    def normalize_compiled_mode(cls, v):
+        if v is None:
+            return None
+        return normalize_mode(v)
 
 
 class Constraint(BaseAletheiaModel):
@@ -144,6 +166,12 @@ class TopologyCluster(BaseAletheiaModel):
     edge_count: Optional[int] = None
     dependency_count: Optional[int] = None
     graph_density: Optional[float] = None
+    cluster_stage: Optional[str] = None
+    merge_basis: Optional[str] = None
+    merge_confidence: float = Field(default=0.0, ge=0.0)
+    preserved_contrast_terms: List[str] = Field(default_factory=list)
+    compressed_from: List[str] = Field(default_factory=list)
+    quarantine_reason: Optional[str] = None
 
 
 # --- EpistemicReasoning: Strict 5 foundational reasoning vectors ---
@@ -195,6 +223,14 @@ class AletheiaSkill(BaseAletheiaModel):
     acs_handshake_sid: Optional[str] = None
     acs_violations: Optional[List[str]] = Field(default_factory=list)
     acs_audited: Optional[bool] = False
+    identity_scope: Optional[IdentityScope] = None
+    task_scope: Optional[TaskScope] = None
+    thought_action_boundary: Optional[ThoughtActionBoundary] = None
+    control_nodes: List[ControlNode] = Field(default_factory=list)
+    governance_version: Optional[str] = None
+    training_visibility_policy: Optional[Dict[str, Any]] = None
+    canonical_mode: Optional[CanonicalMode] = None
+    legacy_mode_alias: Optional[str] = None
 
     @field_validator('source_context', mode='before')
     @classmethod
@@ -208,6 +244,13 @@ class AletheiaSkill(BaseAletheiaModel):
     @classmethod
     def ensure_imports_list(cls, v):
         return v or []
+
+    @field_validator('canonical_mode', mode='before')
+    @classmethod
+    def normalize_canonical_mode(cls, v):
+        if v is None:
+            return None
+        return normalize_mode(v)
 
     @model_validator(mode='after')
     def check_operator_type(self):
@@ -261,6 +304,18 @@ class ReasoningEdge(BaseAletheiaModel):
     transformation: str = Field(default="apply_rule", description="Transformation applied along this edge")
     constraint_ok: bool = Field(default=True, description="Whether all constraints on this edge are satisfied")
     slr: float = Field(default=0.0, ge=0.0, description="SIE-SLR value computed across this edge")
+    relation_type: Optional[str] = None
+    evidence_basis: Optional[str] = None
+    source_domain: Optional[str] = None
+    target_domain: Optional[str] = None
+    cross_domain: bool = False
+    edge_confidence: float = Field(default=0.0, ge=0.0)
+    bridge_confidence: float = Field(default=0.0, ge=0.0)
+    risk_level: Optional[str] = None
+    quarantine_status: Optional[str] = None
+    requires_review: bool = False
+    lens_coordinates: List[LensCoordinate] = Field(default_factory=list)
+    reason: Optional[str] = None
 
 
 class CognitiveNode(BaseAletheiaModel):
